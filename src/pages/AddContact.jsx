@@ -1,14 +1,80 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import useGlobalReducer from "../hooks/useGlobalReducer.jsx";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export const AddContact = () => {
-    const { store, dispatch } = useGlobalReducer();
-    const [contactDetails, setContactDetails] = useState({});
-    
     const navigate = useNavigate();
+    const { store, dispatch } = useGlobalReducer();
+    const { contactId } = useParams();
+    const [loadedContact, setLoadedContact] = useState({
+      name: "",
+      phone: "",
+      email: "",
+      address: "",
+      id: null
+    });
+    useEffect(() => {
+        if (contactId) {
+            async function fetchContacts() {
+                try {
+                    const response = await fetch(`${store.BASE_URL}contacts`);
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new Error("Contacts not found (404)");
+                        } else {
+                            throw new Error(`Server error: ${response.status}`);
+                        }
+                    }
+                    const data = await response.json();
+                    const contactData = data.contacts;
+                    dispatch({ type: "set_contacts", payload: contactData });
+                    setLoadedContact(contactData.find((contact => contact.id === Number(contactId))))
+                } catch (error) {
+                    console.error("There was an error fetching contacts:", error.message);
+                }
+            }
+            fetchContacts();
+        }
+    }, []);
+    async function updateContact() {
+        try {
+            const response = await fetch(`${store.BASE_URL}contacts/${contactId}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loadedContact)
+                });
+            dispatch({
+                type: "update_contact",
+                payload: loadedContact
+            });
+            const data = await response.json();
+            console.log(data);
+            navigate("/");
+        } catch (error) {
+            console.log("There was an error:", error);
+        }
+    };
 
-    async function addContact(name, phone, email, address) {
+
+
+    const [contactDetails, setContactDetails] = useState({
+        contactName: "",
+        contactEmail: "",
+        contactPhone: "",
+        contactAddress: ""
+    });
+
+    async function addContact() {
+        const postData = {
+            name: contactDetails.contactName,
+            email: contactDetails.contactEmail,
+            phone: contactDetails.contactPhone,
+            address: contactDetails.contactAddress
+        }
+
         try {
             const response = await fetch(`${store.BASE_URL}contacts`,
                 {
@@ -16,15 +82,20 @@ export const AddContact = () => {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        name: name,
-                        phone: phone,
-                        email: email,
-                        address: address,
-                    })
+                    body: JSON.stringify(postData)
                 });
+            dispatch({
+                type: "add_contact",
+                payload: {
+                    name: contactDetails.contactName,
+                    email: contactDetails.contactEmail,
+                    phone: contactDetails.contactPhone,
+                    address: contactDetails.contactAddress
+                }
+            });
             const data = await response.json();
             console.log(data);
+            navigate("/");
         } catch (error) {
             console.log("There was an error:", error);
         }
@@ -32,40 +103,107 @@ export const AddContact = () => {
 
     return (
         <main>
-            <form className="container">
-                <div className="mb-3">
-                    <label htmlFor="name" className="form-label">Full Name</label>
-                    <input type="text" className="form-control" id="name" name="name" placeholder="Example: John Doe" />
-                </div>
-                <div className="mb-3">
-                    <label htmlFor="email" className="form-label">Email address</label>
-                    <input type="email" className="form-control" id="email" name="email" placeholder="example@gmail.com" />
-                </div>
-                <div className="mb-3">
-                    <label htmlFor="phone" className="form-label">Phone</label>
-                    <input type="text" className="form-control" id="phone" name="phone" placeholder="(000) 123-456" />
-                </div>
-                <div className="mb-3">
-                    <label htmlFor="address" className="form-label">Address</label>
-                    <input type="text" className="form-control" id="address" name="address" placeholder="123 ABC Street" />
-                </div>
-                <button
-                    type="submit"
-                    className="btn btn-primary"
-                    onClick={(e) => {
+            {contactId ?
+
+                <form className="container"
+                    onSubmit={(e) => {
                         e.preventDefault();
-                        const formData = new FormData()
-                        const name = formData.get("name")
-                        const phone = formData.get("phone")
-                        const email = formData.get("email")
-                        const address = formData.get("address")
-                        addContact(name, phone, email, address);
-                        navigate("/");
-                    }}
-                >
-                    Add
-                </button>
-            </form>
+                        updateContact();
+                    }}>
+                    <div className="mb-3">
+                        <label htmlFor="name" className="form-label">Full Name</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            id="name"
+                            onChange={(e) => setLoadedContact({ ...loadedContact, name: e.target.value })}
+                            value={loadedContact.name}
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label htmlFor="email" className="form-label">Email address</label>
+                        <input
+                            type="email"
+                            className="form-control"
+                            id="email"
+                            onChange={(e) => setLoadedContact({ ...loadedContact, email: e.target.value })}
+                            value={loadedContact.email}
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label htmlFor="phone" className="form-label">Phone</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            id="phone"
+                            onChange={(e) => setLoadedContact({ ...loadedContact, phone: e.target.value })}
+                            value={loadedContact.phone}
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label htmlFor="address" className="form-label">Address</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            id="address"
+                            onChange={(e) => setLoadedContact({ ...loadedContact, address: e.target.value })}
+                            value={loadedContact.address}
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary">Submit</button>
+                </form>
+                : <form className="container"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        addContact();
+                    }}>
+                    <div className="mb-3">
+                        <label htmlFor="name" className="form-label">Full Name</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            id="name"
+                            placeholder="Example: John Doe"
+                            onChange={(e) => setContactDetails({ ...contactDetails, contactName: e.target.value })}
+                            value={contactDetails.contactName}
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label htmlFor="email" className="form-label">Email address</label>
+                        <input
+                            type="email"
+                            className="form-control"
+                            id="email"
+                            placeholder="example@gmail.com"
+                            onChange={(e) => setContactDetails({ ...contactDetails, contactEmail: e.target.value })}
+                            value={contactDetails.contactEmail}
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label htmlFor="phone" className="form-label">Phone</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            id="phone"
+                            placeholder="(000) 123-456"
+                            onChange={(e) => setContactDetails({ ...contactDetails, contactPhone: e.target.value })}
+                            value={contactDetails.contactPhone}
+                        />
+                    </div>
+                    <div className="mb-3">
+                        <label htmlFor="address" className="form-label">Address</label>
+                        <input
+                            type="text"
+                            className="form-control"
+                            id="address"
+                            placeholder="123 ABC Street"
+                            onChange={(e) => setContactDetails({ ...contactDetails, contactAddress: e.target.value })}
+                            value={contactDetails.contactAddress}
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary">Add</button>
+                </form>
+            }
             <button
                 type="button"
                 className="btn btn-warning m-5"
